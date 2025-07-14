@@ -4,14 +4,20 @@
   <meta charset="UTF-8" />
   <title>Geovisor - Espacio Público Comuna 22</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- PWA: Manifest y soporte móvil -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#305f3f">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-minimap/dist/Control.MiniMap.min.css" />
   <style>
-    :root { --sidebar-width: 240px; }
+    :root { --sidebar-width: 240px; --banner-height: 65px; }
     body { margin: 0; height: 100vh; font-family: sans-serif; display: flex; flex-direction: column; overflow: hidden; }
-    #top-banner { display: flex; height: 65px; width: 100%; background: #305f3f; align-items: center; }
+    #top-banner { display: flex; height: var(--banner-height); width: 100%; background: #305f3f; align-items: center; }
     .banner-left { flex: 1; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
     .banner-right { width: var(--sidebar-width); display: flex; align-items: center; justify-content: center; }
     .banner-icons { width: var(--sidebar-width); display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; align-items: center; justify-items: center; }
@@ -53,13 +59,15 @@
       width: var(--sidebar-width);
       background-color: #f0f3f1;
       padding: 12px;
-      overflow-y: scroll;
+      overflow-y: auto;
       overflow-x: hidden;
       border-left: 1px solid #ccc;
       display: flex;
       flex-direction: column;
       align-items: center;
       box-sizing: border-box;
+      transition: left 0.3s;
+      height: 100vh;
     }
     .panel { width: 100%; margin-bottom: 12px; }
     .panel-title {
@@ -114,16 +122,49 @@
       background-color: #00ffff;
       margin-right: 5px;
     }
-    /* === Modales y cursores === */
-    .cursor-adicionar-plus, #map.cursor-adicionar-plus {
-      cursor: url('https://cdn.jsdelivr.net/gh/stephenhutchings/typicons.font@master/src/svg/plus.svg') 12 12, crosshair !important;
+    /* Responsive: sidebar colapsable en móviles */
+    #sidebar-toggle {
+      display: none;
+      position: absolute;
+      left: 8px;
+      top: 12px;
+      z-index: 1001;
+      background: #305f3f;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 2rem;
+      width: 45px; height: 45px;
+      box-shadow: 0 2px 9px #0003;
     }
-    .cursor-actualizar, #map.cursor-actualizar {
-      cursor: url('https://cdn.jsdelivr.net/npm/@tabler/icons@2.44.0/icons/pencil.svg') 10 30, pointer !important;
+    @media (max-width: 750px) {
+      #main { flex-direction: column; }
+      #sidebar {
+        position: absolute;
+        top: var(--banner-height);
+        left: -250px;
+        height: calc(100vh - var(--banner-height));
+        width: 220px;
+        max-width: 95vw;
+        z-index: 1200;
+        box-shadow: 2px 0 15px #0002;
+      }
+      #sidebar.open {
+        left: 0;
+        background: #f0f3f1ee;
+        transition: left 0.3s;
+      }
+      #map { position: absolute; top: var(--banner-height); left: 0; right: 0; bottom: 0; }
+      #sidebar-toggle { display: block; }
+      .panel { font-size: 0.98em; }
+      .banner-left { font-size: 0.95rem; }
     }
-    .cursor-eliminar, #map.cursor-eliminar {
-      cursor: url('https://cdn.jsdelivr.net/gh/icons8/windows-8/Color/16/delete-sign.png') 8 8, not-allowed !important;
+    @media (max-width: 480px) {
+      #sidebar { width: 99vw; left: -100vw; }
+      #sidebar.open { left: 0; }
+      .panel { font-size: 0.93em; }
     }
+    /* Modales */
     .form-modal-panel {
       position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
       background: #f8fcfa;
@@ -170,10 +211,21 @@
       color: white; box-shadow: 0 3px 12px #ee464634;
     }
     .form-modal-panel .btn-delete:hover { background: #b70000; }
+    /* Cursores */
+    .cursor-adicionar-plus, #map.cursor-adicionar-plus {
+      cursor: url('https://cdn.jsdelivr.net/gh/stephenhutchings/typicons.font@master/src/svg/plus.svg') 12 12, crosshair !important;
+    }
+    .cursor-actualizar, #map.cursor-actualizar {
+      cursor: url('https://cdn.jsdelivr.net/npm/@tabler/icons@2.44.0/icons/pencil.svg') 10 30, pointer !important;
+    }
+    .cursor-eliminar, #map.cursor-eliminar {
+      cursor: url('https://cdn.jsdelivr.net/gh/icons8/windows-8/Color/16/delete-sign.png') 8 8, not-allowed !important;
+    }
   </style>
 </head>
 <body>
   <div id="top-banner">
+    <button id="sidebar-toggle" title="Abrir menú">☰</button>
     <div class="banner-left">🌿 Geovisor del Espacio Público - Comuna 22</div>
     <div class="banner-right">
       <div class="banner-icons">
@@ -190,10 +242,14 @@
       <div class="panel"><div class="panel-title">Capas</div><div class="panel-content" id="layer-controls"></div></div>
       <div class="panel"><div class="panel-title">Leyenda</div><div class="panel-content" id="leyenda"></div></div>
       <div class="panel"><div class="panel-title">Herramientas</div><div class="panel-content"><button onclick="map.setView([3.352, -76.53719], 14)">🔁 Restablecer vista</button></div></div>
-      <div class="meta-info">Fuente: IDESC - Alcaldía de Santiago de Cali</div>
+      <div class="meta-info">
+        Fuente: IDESC - Alcaldía de Santiago de Cali<br>
+        <a href="https://github.com/ricodorojas1799/geovisor_comuna_22#readme" target="_blank">Ver README del proyecto</a>
+      </div>
     </div>
   </div>
 
+  <!-- MODALES -->
   <!-- Modal selección capa punto -->
   <div id="form-seleccionar-capa" class="form-modal-panel" style="min-height:unset;max-width:350px;padding-bottom:14px;">
     <div class="titulo-modal" id="titulo-modal-capa">Selecciona la capa de puntos</div>
@@ -260,6 +316,8 @@
       <button type="button" class="btn-modal btn-delete" id="btn-eliminar">Eliminar</button>
     </div>
   </div>
+
+  <!-- SCRIPTS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
   <script src="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
@@ -418,6 +476,26 @@
       coordsDiv.innerHTML = `x: ${e.latlng.lng.toFixed(5)}, y: ${e.latlng.lat.toFixed(5)}`;
     });
 
+    // Sidebar responsive (abrir/cerrar en móvil)
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    sidebarToggle.onclick = function() {
+      if (sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
+        sidebarToggle.innerText = '☰';
+      } else {
+        sidebar.classList.add('open');
+        sidebarToggle.innerText = '✕';
+      }
+    };
+    // Al tocar mapa en móvil, cerrar el sidebar
+    document.getElementById('map').onclick = function() {
+      if (window.innerWidth < 750) sidebar.classList.remove('open'), sidebarToggle.innerText = '☰';
+    };
+    window.addEventListener('resize', function() {
+      if (window.innerWidth > 750) sidebar.classList.remove('open');
+    });
+
     // Flujo botones y modales
     let modo = null, coordsTemp = null, capaSeleccionada = null, accionActual = null;
     function cerrarTodosLosModales() {
@@ -459,7 +537,6 @@
         next();
       };
     }
-    // Botones con cursores
     document.querySelectorAll('.banner-btn')[0].onclick = () => {
       pedirCapa(() => {
         modo = 'adicionar';
