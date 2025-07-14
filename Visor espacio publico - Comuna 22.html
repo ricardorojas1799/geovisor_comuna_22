@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Geovisor - Espacio Público Comuna 22</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-minimap/dist/Control.MiniMap.min.css" />
+  <style>
+    :root { --sidebar-width: 240px; }
+    body { margin: 0; height: 100vh; font-family: sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+    #top-banner { display: flex; height: 65px; width: 100%; background: #305f3f; align-items: center; }
+    .banner-left { flex: 1; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+    .banner-right { width: var(--sidebar-width); display: flex; align-items: center; justify-content: center; }
+    .banner-icons { width: var(--sidebar-width); display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; align-items: center; justify-items: center; }
+    .banner-btn { text-align: center; cursor: pointer; transition: transform 0.12s; }
+    .banner-btn:hover { transform: scale(1.13) rotate(-5deg); }
+    .banner-btn img { width: 26px; height: 26px; display: block; margin: 0 auto 2px; transition: transform 0.3s; }
+    .banner-btn span { font-size: 0.7rem; color: white; }
+    .banner-btn.ani-adicionar img { animation: pulseplus 1s infinite alternate; }
+    .banner-btn.ani-actualizar img { animation: pulseedit 1s infinite alternate; }
+    .banner-btn.ani-eliminar img { animation: pulseel 1s infinite alternate; }
+    @keyframes pulseplus { 100% { transform: scale(1.27) rotate(-10deg); } }
+    @keyframes pulseedit { 100% { transform: scale(1.18) rotate(8deg); } }
+    @keyframes pulseel { 100% { transform: scale(1.18) rotate(-8deg); } }
+    .info-icon { font-size: 1rem; color: white; cursor: pointer; }
+    .info-icon:hover::after {
+      content: 'Estos botones aplican solo a capas de tipo punto';
+      position: absolute;
+      top: 25px;
+      right: 0;
+      width: 200px;
+      background: #fff;
+      color: #333;
+      padding: 5px 7px;
+      border-radius: 6px;
+      font-size: 0.68rem;
+      box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
+      z-index: 999;
+      white-space: normal;
+    }
+    #main { display: flex; flex: 1; overflow: hidden; }
+    #map { flex: 1; height: 100%; position: relative; }
+    #map::after {
+      content: '';
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      width: 40px;
+      height: 40px;
+      background-image: url('norte.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      z-index: 1001;
+    }
+    #sidebar {
+      width: var(--sidebar-width);
+      background-color: #f0f3f1;
+      padding: 12px;
+      overflow-y: scroll;
+      overflow-x: hidden;
+      border-left: 1px solid #ccc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-sizing: border-box;
+    }
+    .panel { width: 100%; margin-bottom: 12px; }
+    .panel-title {
+      background: #305f3f;
+      text-align: center;
+      color: #fff;
+      padding: 6px 0;
+      border-radius: 6px 6px 0 0;
+      font-weight: bold;
+      margin: 0;
+      font-size: 0.95rem;
+    }
+    .panel-content {
+      background: rgba(212, 233, 219, 0.85);
+      border-radius: 0 0 6px 6px;
+      padding: 8px;
+      text-align: left;
+      box-shadow: 0 0 3px rgba(0, 0, 0, 0.08);
+    }
+    button {
+      padding: 6px 10px;
+      background: #5dbb63;
+      border: none;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      margin-top: 6px;
+    }
+    .meta-info {
+      font-size: 0.75em;
+      text-align: center;
+      color: #555;
+      margin-top: 10px;
+    }
+    #coordenadas-pasivas {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.85);
+      padding: 4px 12px;
+      font-size: 0.85em;
+      border-radius: 6px;
+      z-index: 1000;
+    }
+    .leyenda-linea {
+      display: inline-block;
+      vertical-align: middle;
+      height: 5px;
+      width: 20px;
+      background-color: #00ffff;
+      margin-right: 5px;
+    }
+    /* === Modales y cursores === */
+    .cursor-adicionar-plus, #map.cursor-adicionar-plus {
+      cursor: url('https://cdn.jsdelivr.net/gh/stephenhutchings/typicons.font@master/src/svg/plus.svg') 12 12, crosshair !important;
+    }
+    .cursor-actualizar, #map.cursor-actualizar {
+      cursor: url('https://cdn.jsdelivr.net/npm/@tabler/icons@2.44.0/icons/pencil.svg') 10 30, pointer !important;
+    }
+    .cursor-eliminar, #map.cursor-eliminar {
+      cursor: url('https://cdn.jsdelivr.net/gh/icons8/windows-8/Color/16/delete-sign.png') 8 8, not-allowed !important;
+    }
+    .form-modal-panel {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: #f8fcfa;
+      border-radius: 18px;
+      box-shadow: 0 8px 32px #0002;
+      padding: 22px 24px 10px 24px;
+      z-index: 2000; display: none; min-width: 330px;
+      border: 1.5px solid #47a574;
+      max-width: 97vw;
+    }
+    .form-modal-panel label {
+      font-weight: bold; color: #305f3f;
+    }
+    .form-modal-panel input, .form-modal-panel select {
+      margin-top: 3px;
+      border-radius: 7px;
+      border: 1px solid #b1e0ca;
+      padding: 8px 8px 7px 8px;
+      margin-bottom: 10px;
+      width: 99%;
+      font-size: 1em;
+      background: #eaf7f0;
+    }
+    .form-modal-panel .titulo-modal {
+      font-weight: 800; font-size: 1.19em; color: #237e54;
+      margin-bottom: 12px; text-align: center; letter-spacing: 0.5px;
+    }
+    .form-modal-panel .btn-modal {
+      font-weight: bold; padding: 8px 16px; margin: 10px 6px 0 0;
+      border: none; border-radius: 8px; font-size: 1em; cursor: pointer;
+      transition: background 0.18s;
+    }
+    .form-modal-panel .btn-cancelar {
+      background: #efefef; color: #305f3f; border: 1px solid #b6d7c7;
+    }
+    .form-modal-panel .btn-cancelar:hover { background: #e2ebe5; }
+    .form-modal-panel .btn-guardar {
+      background: linear-gradient(90deg,#3dc77e 0,#2eb77c 100%);
+      color: white; box-shadow: 0 3px 12px #54e79934;
+    }
+    .form-modal-panel .btn-guardar:hover { background: #279a61; }
+    .form-modal-panel .btn-delete {
+      background: linear-gradient(90deg,#ee4646 0,#d42121 100%);
+      color: white; box-shadow: 0 3px 12px #ee464634;
+    }
+    .form-modal-panel .btn-delete:hover { background: #b70000; }
+  </style>
+</head>
+<body>
+  <div id="top-banner">
+    <div class="banner-left">🌿 Geovisor del Espacio Público - Comuna 22</div>
+    <div class="banner-right">
+      <div class="banner-icons">
+        <div class="banner-btn ani-adicionar"><img src="icon-adicionar.png" alt="Adicionar" /><span>Adicionar</span></div>
+        <div class="banner-btn ani-actualizar"><img src="icon-actualizar.png" alt="Actualizar" /><span>Actualizar</span></div>
+        <div class="banner-btn ani-eliminar"><img src="icon-eliminar.png" alt="Eliminar" /><span>Eliminar</span></div>
+        <div class="info-icon" title="Los botones aplican solo a capas tipo punto (shapefile)">❓</div>
+      </div>
+    </div>
+  </div>
+  <div id="main">
+    <div id="map"><div id="coordenadas-pasivas">x: -, y: -</div></div>
+    <div id="sidebar">
+      <div class="panel"><div class="panel-title">Capas</div><div class="panel-content" id="layer-controls"></div></div>
+      <div class="panel"><div class="panel-title">Leyenda</div><div class="panel-content" id="leyenda"></div></div>
+      <div class="panel"><div class="panel-title">Herramientas</div><div class="panel-content"><button onclick="map.setView([3.352, -76.53719], 14)">🔁 Restablecer vista</button></div></div>
+      <div class="meta-info">Fuente: IDESC - Alcaldía de Santiago de Cali</div>
+    </div>
+  </div>
+
+  <!-- Modal selección capa punto -->
+  <div id="form-seleccionar-capa" class="form-modal-panel" style="min-height:unset;max-width:350px;padding-bottom:14px;">
+    <div class="titulo-modal" id="titulo-modal-capa">Selecciona la capa de puntos</div>
+    <form id="form-capa-puntos">
+      <label>Capa seleccionada</label><br>
+      <select id="select-capa-punto" required style="margin-bottom:10px;">
+        <option value="" disabled selected>Selecciona una capa</option>
+        <option value="salud_higiene_cesta">Cestas de residuos</option>
+        <option value="ambientacion_bancas">Bancas</option>
+        <option value="recreacion">Recreación</option>
+        <option value="paradas_mio">Paradas del mío</option>
+        <option value="comunicacion_cartelera_mapa">Cartelera de información</option>
+        <option value="vallas_publicitarias">Vallas publicitarias</option>
+        <option value="licencias_vencidas">Licencias vencidas</option>
+      </select>
+      <div id="texto-instruccion-capa" style="
+        background:#e5f6eb;
+        color:#237e54;
+        border-radius:8px;
+        padding:7px 10px;
+        margin-bottom: 8px;
+        font-weight: bold;
+        font-size: 1em;
+        border-left: 4px solid #3dc77e;
+        margin-top:0;
+        ">
+        Una vez selecciones la capa, debes dar click sobre el mapa...
+      </div>
+      <div style="text-align: right;">
+        <button type="button" class="btn-modal btn-cancelar" id="btn-cancelar-capa">Cancelar</button>
+        <button type="submit" class="btn-modal btn-guardar" id="btn-confirmar-capa">Continuar</button>
+      </div>
+    </form>
+  </div>
+  <!-- MODAL AÑADIR/EDITAR -->
+  <div id="form-adicionar-panel" class="form-modal-panel">
+    <div class="titulo-modal" id="modal-adicionar-titulo">➕ Añadir punto</div>
+    <form id="form-agregar-punto" autocomplete="off">
+      <div id="inputs-formulario-punto"></div>
+      <div style="text-align: right; margin-top: 16px;">
+        <button type="button" class="btn-modal btn-cancelar" id="btn-cancelar-form">Cancelar</button>
+        <button type="submit" class="btn-modal btn-guardar" id="btn-guardar-form">Guardar</button>
+      </div>
+    </form>
+  </div>
+  <div id="form-actualizar-panel" class="form-modal-panel">
+    <div class="titulo-modal" id="modal-editar-titulo">✏️ Editar punto</div>
+    <form id="form-actualizar-punto" autocomplete="off">
+      <div id="inputs-formulario-punto-editar"></div>
+      <div style="text-align: right; margin-top: 16px;">
+        <button type="button" class="btn-modal btn-cancelar" id="btn-cancelar-edit">Cancelar</button>
+        <button type="submit" class="btn-modal btn-guardar" id="btn-guardar-edit">Guardar</button>
+      </div>
+    </form>
+  </div>
+  <!-- Modal de eliminar -->
+  <div id="form-eliminar-panel" class="form-modal-panel" style="min-height:170px;">
+    <div class="titulo-modal">❌ Eliminar punto</div>
+    <div style="font-size:1.12em; margin: 22px 0 18px 0; text-align:center;">
+      ¿Seguro que deseas eliminar este elemento?
+    </div>
+    <div style="text-align: right; margin-top: 8px;">
+      <button type="button" class="btn-modal btn-cancelar" id="btn-cancelar-del">Cancelar</button>
+      <button type="button" class="btn-modal btn-delete" id="btn-eliminar">Eliminar</button>
+    </div>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+  <script src="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
+  <script src="https://unpkg.com/leaflet-minimap/dist/Control.MiniMap.min.js"></script>
+  <script>
+    // CAPAS en orden (base a arriba)
+    const capasOrdenadas = [
+      "comuna_22", "encuentro_ciudadano_zona_verde", "encuentro_ciudadano_parque", "plazoletas_comercio",
+      "esquemas_basicos", "zona_especial_estacionamiento", "zona_general_regulacion_estacionamiento",
+      "ciclorrutas_comuna22",
+      "salud_higiene_cesta", "ambientacion_bancas", "recreacion", "paradas_mio",
+      "comunicacion_cartelera_mapa", "vallas_publicitarias", "licencias_vencidas"
+    ];
+    const capas = {
+      comuna_22: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:comuna_22', format: 'image/png', transparent: true }),
+      encuentro_ciudadano_zona_verde: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:encuentro_ciudadano_zona_verde', format: 'image/png', transparent: true }),
+      encuentro_ciudadano_parque: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:encuentro_ciudadano_parque', format: 'image/png', transparent: true }),
+      plazoletas_comercio: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:plazoletas_comercio', format: 'image/png', transparent: true }),
+      esquemas_basicos: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:esquemas_basicos', format: 'image/png', transparent: true }),
+      zona_especial_estacionamiento: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:zona_especial_estacionamiento', format: 'image/png', transparent: true }),
+      zona_general_regulacion_estacionamiento: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:zona_general_regulacion_estacionamiento', format: 'image/png', transparent: true }),
+      ciclorrutas_comuna22: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:ciclorrutas_comuna22', format: 'image/png', transparent: true }),
+      salud_higiene_cesta: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:salud_higiene_cesta', format: 'image/png', transparent: true }),
+      ambientacion_bancas: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:ambientacion_bancas', format: 'image/png', transparent: true }),
+      recreacion: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:recreacion', format: 'image/png', transparent: true }),
+      paradas_mio: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:paradas_mio', format: 'image/png', transparent: true }),
+      comunicacion_cartelera_mapa: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:comunicacion_cartelera_mapa', format: 'image/png', transparent: true }),
+      vallas_publicitarias: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:vallas_publicitarias', format: 'image/png', transparent: true }),
+      licencias_vencidas: L.tileLayer.wms("http://localhost:8080/geoserver/taller3/wms", { layers: 'taller3:licencias_vencidas', format: 'image/png', transparent: true })
+    };
+    const capasPunto = [
+      "salud_higiene_cesta", "ambientacion_bancas", "recreacion", "paradas_mio",
+      "comunicacion_cartelera_mapa", "vallas_publicitarias", "licencias_vencidas"
+    ];
+    // Colores de la leyenda
+    const coloresLeyenda = {
+      comuna_22: "#fff", // solo borde
+      encuentro_ciudadano_zona_verde: "#009933",
+      encuentro_ciudadano_parque: "#ffff00",
+      plazoletas_comercio: "#00ffff",
+      esquemas_basicos: "#e07b7b",
+      zona_especial_estacionamiento: "#e3e3b7",
+      zona_general_regulacion_estacionamiento: "#d6dee6",
+      ciclorrutas_comuna22: "#00ffff",
+      salud_higiene_cesta: "#444",
+      ambientacion_bancas: "#90ee90",
+      recreacion: "#00ffff",
+      paradas_mio: "#0000ff",
+      comunicacion_cartelera_mapa: "#00ff33",
+      vallas_publicitarias: "#cc00cc",
+      licencias_vencidas: "#cc3333"
+    };
+    const bordesLeyenda = {
+      comuna_22: "2px solid #000"
+    };
+    const nombres = {
+      comuna_22: "Perímetro - Comuna 22",
+      encuentro_ciudadano_zona_verde: "Zonas verdes",
+      encuentro_ciudadano_parque: "Parques",
+      plazoletas_comercio: "Plazoletas de comercio",
+      esquemas_basicos: "Esquemas básicos",
+      zona_especial_estacionamiento: "Zona especial estacionamiento",
+      zona_general_regulacion_estacionamiento: "Zona general regulación estacionamiento",
+      ciclorrutas_comuna22: "Ciclorrutas",
+      salud_higiene_cesta: "Cestas de residuos",
+      ambientacion_bancas: "Bancas",
+      recreacion: "Recreación",
+      paradas_mio: "Paradas del mío",
+      comunicacion_cartelera_mapa: "Cartelera de información",
+      vallas_publicitarias: "Vallas publicitarias",
+      licencias_vencidas: "Licencias vencidas"
+    };
+    // Formulario estándar (simple) para todas las capas de punto
+    const camposFormularioPunto = [
+      { label: "Descripción", id: "descripcion", tipo: "text", placeholder: "Ej: Breve descripción..." },
+      { label: "Estado", id: "estado", tipo: "select", opciones: ["Bueno", "Regular", "Malo"] }
+    ];
+
+    // Inicializa mapa
+    const map = L.map('map', { zoomControl: false }).setView([3.352, -76.53719], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    L.Control.geocoder({ position: 'topright' }).addTo(map);
+    L.control.zoom({ position: 'topright' }).addTo(map);
+    L.control.locate({ position: 'topright', flyTo: true }).addTo(map);
+    L.control.scale({ imperial: false, maxWidth: 200 }).addTo(map);
+    const miniMap = new L.Control.MiniMap(
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+      { toggleDisplay: true, minimized: false, position: 'bottomright' }
+    ).addTo(map);
+    // Orden de capas: base -> puntos
+    capasOrdenadas.forEach(k => capas[k].addTo(map));
+
+    // Leyenda
+    function actualizarLeyenda() {
+      const leyenda = document.getElementById('leyenda');
+      leyenda.innerHTML = '';
+      capasOrdenadas.forEach(capa => {
+        if (map.hasLayer(capas[capa])) {
+          const div = document.createElement('div');
+          if (capa === 'comuna_22') {
+            const icono = document.createElement('span');
+            icono.style.display = 'inline-block';
+            icono.style.width = '14px';
+            icono.style.height = '14px';
+            icono.style.marginRight = '6px';
+            icono.style.background = 'transparent';
+            icono.style.border = bordesLeyenda[capa] || '1px solid #000';
+            icono.style.verticalAlign = 'middle';
+            div.appendChild(icono);
+          } else if (capa === 'ciclorrutas_comuna22') {
+            const linea = document.createElement('span');
+            linea.className = 'leyenda-linea';
+            div.appendChild(linea);
+          } else {
+            const icono = document.createElement('span');
+            icono.style.backgroundColor = coloresLeyenda[capa] || '#999';
+            icono.style.display = 'inline-block';
+            icono.style.width = '12px';
+            icono.style.height = '12px';
+            icono.style.marginRight = '6px';
+            icono.style.border = '1px solid #666';
+            icono.style.verticalAlign = 'middle';
+            icono.style.borderRadius = capasPunto.includes(capa) ? '50%' : '2px';
+            div.appendChild(icono);
+          }
+          div.appendChild(document.createTextNode(nombres[capa]));
+          leyenda.appendChild(div);
+        }
+      });
+    }
+    // Panel de capas (en orden)
+    const panel = document.getElementById('layer-controls');
+    capasOrdenadas.forEach(capa => {
+      const chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.id = capa;
+      chk.checked = true;
+      chk.onchange = () => {
+        if (chk.checked) {
+          capas[capa].addTo(map);
+        } else {
+          map.removeLayer(capas[capa]);
+        }
+        actualizarLeyenda();
+      };
+      const label = document.createElement('label');
+      label.appendChild(chk);
+      label.appendChild(document.createTextNode(" " + nombres[capa]));
+      panel.appendChild(label);
+      panel.appendChild(document.createElement('br'));
+    });
+    actualizarLeyenda();
+
+    const coordsDiv = document.getElementById('coordenadas-pasivas');
+    map.on('mousemove', function (e) {
+      coordsDiv.innerHTML = `x: ${e.latlng.lng.toFixed(5)}, y: ${e.latlng.lat.toFixed(5)}`;
+    });
+
+    // Flujo botones y modales
+    let modo = null, coordsTemp = null, capaSeleccionada = null, accionActual = null;
+    function cerrarTodosLosModales() {
+      document.querySelectorAll('.form-modal-panel').forEach(m=>m.style.display='none');
+      document.body.classList.remove('cursor-adicionar-plus','cursor-actualizar','cursor-eliminar');
+      document.getElementById('map').classList.remove('cursor-adicionar-plus','cursor-actualizar','cursor-eliminar');
+      modo = null; coordsTemp = null; capaSeleccionada = null; accionActual = null;
+    }
+    function obtenerNombreModal(capa, accion) {
+      let nombre = nombres[capa] || "";
+      let verbos = { adicionar: "Añadir", actualizar: "Editar", eliminar: "Eliminar" };
+      let iconos = { adicionar: "➕", actualizar: "✏️", eliminar: "❌" };
+      let tipo = capasPunto.includes(capa) ? "punto de " : "";
+      return `${iconos[accion]} ${verbos[accion]} ${tipo}${nombre}`;
+    }
+    function pedirCapa(next, tipoAccion) {
+      cerrarTodosLosModales();
+      accionActual = tipoAccion;
+      document.getElementById('form-seleccionar-capa').style.display = 'block';
+      document.getElementById('select-capa-punto').selectedIndex = 0;
+      document.getElementById('btn-cancelar-capa').onclick = cerrarTodosLosModales;
+      let msg = '';
+      if (tipoAccion === 'adicionar') {
+        msg = 'Una vez selecciones la capa, debes dar click sobre el <span style="color:#2eb77c;font-weight:900;">mapa</span> para agregar un nuevo punto.';
+        document.getElementById('titulo-modal-capa').innerHTML = "➕ Selecciona la capa de puntos";
+      } else if (tipoAccion === 'actualizar') {
+        msg = 'Una vez selecciones la capa, debes dar click sobre el <span style="color:#f3921c;font-weight:900;">punto</span> que deseas actualizar.';
+        document.getElementById('titulo-modal-capa').innerHTML = "✏️ Selecciona la capa de puntos";
+      } else if (tipoAccion === 'eliminar') {
+        msg = 'Una vez selecciones la capa, debes dar click sobre el <span style="color:#c43131;font-weight:900;">punto</span> que deseas eliminar.';
+        document.getElementById('titulo-modal-capa').innerHTML = "❌ Selecciona la capa de puntos";
+      }
+      document.getElementById('texto-instruccion-capa').innerHTML = msg;
+      document.getElementById('form-capa-puntos').onsubmit = function(e) {
+        e.preventDefault();
+        capaSeleccionada = document.getElementById('select-capa-punto').value;
+        if (!capaSeleccionada) return alert('Selecciona una capa.');
+        cerrarTodosLosModales();
+        next();
+      };
+    }
+    // Botones con cursores y animaciones
+    document.querySelectorAll('.banner-btn')[0].onclick = () => {
+      pedirCapa(() => {
+        modo = 'adicionar';
+        document.body.classList.add('cursor-adicionar-plus');
+        document.getElementById('map').classList.add('cursor-adicionar-plus');
+      }, 'adicionar');
+    };
+    document.querySelectorAll('.banner-btn')[1].onclick = () => {
+      pedirCapa(() => {
+        modo = 'actualizar';
+        document.body.classList.add('cursor-actualizar');
+        document.getElementById('map').classList.add('cursor-actualizar');
+      }, 'actualizar');
+    };
+    document.querySelectorAll('.banner-btn')[2].onclick = () => {
+      pedirCapa(() => {
+        modo = 'eliminar';
+        document.body.classList.add('cursor-eliminar');
+        document.getElementById('map').classList.add('cursor-eliminar');
+      }, 'eliminar');
+    };
+    // Renderiza formulario (simple) para puntos
+    function renderizarCamposFormulario(idContenedor, valoresPrevios = {}) {
+      const contenedor = document.getElementById(idContenedor);
+      contenedor.innerHTML = "";
+      camposFormularioPunto.forEach(campo => {
+        const div = document.createElement('div');
+        const label = document.createElement('label');
+        label.innerText = campo.label;
+        div.appendChild(label); div.appendChild(document.createElement('br'));
+        let input;
+        if (campo.tipo === "select") {
+          input = document.createElement('select');
+          input.id = campo.id;
+          campo.opciones.forEach(op => {
+            const opt = document.createElement('option');
+            opt.value = op; opt.innerText = op;
+            input.appendChild(opt);
+          });
+        } else {
+          input = document.createElement('input');
+          input.type = campo.tipo;
+          input.id = campo.id;
+          if (campo.placeholder) input.placeholder = campo.placeholder;
+        }
+        if (valoresPrevios && valoresPrevios[campo.id]) input.value = valoresPrevios[campo.id];
+        div.appendChild(input);
+        contenedor.appendChild(div);
+      });
+    }
+    map.on('click', function(e) {
+      if (modo === 'adicionar') {
+        coordsTemp = e.latlng;
+        document.getElementById('modal-adicionar-titulo').innerText = obtenerNombreModal(capaSeleccionada, 'adicionar');
+        renderizarCamposFormulario("inputs-formulario-punto");
+        document.getElementById('form-adicionar-panel').style.display = 'block';
+        cerrarCursors();
+        modo = null;
+        return;
+      }
+      if (modo === 'actualizar') {
+        coordsTemp = e.latlng;
+        document.getElementById('modal-editar-titulo').innerText = obtenerNombreModal(capaSeleccionada, 'actualizar');
+        renderizarCamposFormulario("inputs-formulario-punto-editar", { });
+        document.getElementById('form-actualizar-panel').style.display = 'block';
+        cerrarCursors();
+        modo = null;
+        return;
+      }
+      if (modo === 'eliminar') {
+        coordsTemp = e.latlng;
+        document.getElementById('form-eliminar-panel').style.display = 'block';
+        cerrarCursors();
+        modo = null;
+        return;
+      }
+    });
+    function cerrarCursors() {
+      document.body.classList.remove('cursor-adicionar-plus','cursor-actualizar','cursor-eliminar');
+      document.getElementById('map').classList.remove('cursor-adicionar-plus','cursor-actualizar','cursor-eliminar');
+    }
+    document.getElementById('btn-cancelar-form').onclick = cerrarTodosLosModales;
+    document.getElementById('form-agregar-punto').onsubmit = (ev) => {
+      ev.preventDefault();
+      alert('Datos listos para enviar (aún sin guardar en BD).');
+      cerrarTodosLosModales();
+    };
+    document.getElementById('btn-cancelar-edit').onclick = cerrarTodosLosModales;
+    document.getElementById('form-actualizar-punto').onsubmit = (ev) => {
+      ev.preventDefault();
+      alert('Datos editados listos para enviar (aún sin guardar en BD).');
+      cerrarTodosLosModales();
+    };
+    document.getElementById('btn-cancelar-del').onclick = cerrarTodosLosModales;
+    document.getElementById('btn-eliminar').onclick = (ev) => {
+      ev.preventDefault();
+      alert('Elemento eliminado (simulado, no afecta BD).');
+      cerrarTodosLosModales();
+    };
+  </script>
+</body>
+</html>
