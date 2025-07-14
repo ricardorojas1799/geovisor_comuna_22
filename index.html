@@ -16,15 +16,9 @@
     .banner-right { width: var(--sidebar-width); display: flex; align-items: center; justify-content: center; }
     .banner-icons { width: var(--sidebar-width); display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; align-items: center; justify-items: center; }
     .banner-btn { text-align: center; cursor: pointer; transition: transform 0.12s; }
-    .banner-btn:hover { transform: scale(1.13) rotate(-5deg); }
-    .banner-btn img { width: 26px; height: 26px; display: block; margin: 0 auto 2px; transition: transform 0.3s; }
+    .banner-btn:hover { transform: scale(1.06); }
+    .banner-btn img { width: 26px; height: 26px; display: block; margin: 0 auto 2px; transition: none; }
     .banner-btn span { font-size: 0.7rem; color: white; }
-    .banner-btn.ani-adicionar img { animation: pulseplus 1s infinite alternate; }
-    .banner-btn.ani-actualizar img { animation: pulseedit 1s infinite alternate; }
-    .banner-btn.ani-eliminar img { animation: pulseel 1s infinite alternate; }
-    @keyframes pulseplus { 100% { transform: scale(1.27) rotate(-10deg); } }
-    @keyframes pulseedit { 100% { transform: scale(1.18) rotate(8deg); } }
-    @keyframes pulseel { 100% { transform: scale(1.18) rotate(-8deg); } }
     .info-icon { font-size: 1rem; color: white; cursor: pointer; }
     .info-icon:hover::after {
       content: 'Estos botones aplican solo a capas de tipo punto';
@@ -183,9 +177,9 @@
     <div class="banner-left">🌿 Geovisor del Espacio Público - Comuna 22</div>
     <div class="banner-right">
       <div class="banner-icons">
-        <div class="banner-btn ani-adicionar"><img src="icon-adicionar.png" alt="Adicionar" /><span>Adicionar</span></div>
-        <div class="banner-btn ani-actualizar"><img src="icon-actualizar.png" alt="Actualizar" /><span>Actualizar</span></div>
-        <div class="banner-btn ani-eliminar"><img src="icon-eliminar.png" alt="Eliminar" /><span>Eliminar</span></div>
+        <div class="banner-btn"><img src="icon-adicionar.png" alt="Adicionar" /><span>Adicionar</span></div>
+        <div class="banner-btn"><img src="icon-actualizar.png" alt="Actualizar" /><span>Actualizar</span></div>
+        <div class="banner-btn"><img src="icon-eliminar.png" alt="Eliminar" /><span>Eliminar</span></div>
         <div class="info-icon" title="Los botones aplican solo a capas tipo punto (shapefile)">❓</div>
       </div>
     </div>
@@ -343,7 +337,6 @@
       { label: "Descripción", id: "descripcion", tipo: "text", placeholder: "Ej: Breve descripción..." },
       { label: "Estado", id: "estado", tipo: "select", opciones: ["Bueno", "Regular", "Malo"] }
     ];
-
     // Inicializa mapa
     const map = L.map('map', { zoomControl: false }).setView([3.352, -76.53719], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -359,7 +352,6 @@
     ).addTo(map);
     // Orden de capas: base -> puntos
     capasOrdenadas.forEach(k => capas[k].addTo(map));
-
     // Leyenda
     function actualizarLeyenda() {
       const leyenda = document.getElementById('leyenda');
@@ -467,7 +459,7 @@
         next();
       };
     }
-    // Botones con cursores y animaciones
+    // Botones con cursores
     document.querySelectorAll('.banner-btn')[0].onclick = () => {
       pedirCapa(() => {
         modo = 'adicionar';
@@ -570,3 +562,4 @@
   </script>
 </body>
 </html>
+
